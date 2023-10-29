@@ -48,30 +48,35 @@ func copyData(data []byte) ([]byte, error) {
 	}
 	defer fileReader.Close()
 
-	arrowReader, err := pqarrow.NewFileReader(fileReader, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
+	arrowReadProperties := pqarrow.ArrowReadProperties{}
+	arrowReader, err := pqarrow.NewFileReader(fileReader, arrowReadProperties, memory.DefaultAllocator)
+	if err != nil {
+		return nil, err
+	}
+
+	arrowSchema, err := pqarrow.FromParquet(fileReader.MetaData().Schema, &arrowReadProperties, fileReader.MetaData().KeyValueMetadata())
 	if err != nil {
 		return nil, err
 	}
 
 	output := &bytes.Buffer{}
-	fileWriter := file.NewParquetWriter(output, fileReader.MetaData().Schema.Root())
+	fileWriter, err := pqarrow.NewFileWriter(arrowSchema, output, nil, pqarrow.DefaultWriterProps())
+	if err != nil {
+		return nil, err
+	}
 
 	ctx := context.Background()
 	numFields := len(arrowReader.Manifest.Fields)
 	numRowGroups := fileReader.NumRowGroups()
 	for rowGroupIndex := 0; rowGroupIndex < numRowGroups; rowGroupIndex += 1 {
 		rowGroupReader := arrowReader.RowGroup(rowGroupIndex)
-		rowGroupWriter := fileWriter.AppendRowGroup()
+		fileWriter.NewRowGroup()
 		for fieldNum := 0; fieldNum < numFields; fieldNum += 1 {
 			arr, err := rowGroupReader.Column(fieldNum).Read(ctx)
 			if err != nil {
 				return nil, err
 			}
-			colWriter, err := pqarrow.NewArrowColumnWriter(arr, 0, int64(arr.Len()), arrowReader.Manifest, rowGroupWriter, fieldNum)
-			if err != nil {
-				return nil, err
-			}
-			if err := colWriter.Write(ctx); err != nil {
+			if err := fileWriter.WriteColumnChunked(arr, 0, int64(arr.Len())); err != nil {
 				return nil, err
 			}
 		}
