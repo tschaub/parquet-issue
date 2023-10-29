@@ -10,9 +10,9 @@ brew install apache-arrow
 
 ## Test
 
-The test downloads a Parquet file from the [Overture Maps](https://github.com/OvertureMaps/data) dataset.  This is a large (105MB) file with a fairly complex schema.  The first time the test is run, it takes a while to download.
+The test is based on a subset of a [Overture Maps](https://github.com/OvertureMaps/data) parquet file.  Only the `sources` and `bbox` columns and a single row are included in the `input.parquet` file.  See the `notes.md` file for details.
 
-Running `make test` will download the `input.parquet` file, run `main.go` to create the `output.parquet` file, and then attempt to read the output file with `parquet-reader`:
+Running `make test` will run `main.go` to create the `output.parquet` file and then attempt to read the output file with `parquet-reader`:
 
 ```shell
 make test
